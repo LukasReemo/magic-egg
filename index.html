@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f9f6ee">
+  <meta name="description" content="Kouzelné vajíčko — laskavý časovač pro malé objevitele. Počkejte chvilku a přivítejte zvířátko.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Kouzelné vajíčko</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand"><img src="./assets/icon.svg" alt="" width="36" height="36"><span>Kouzelné vajíčko</span></div>
+      <button id="sound" class="sound" type="button" aria-label="Zvuk zapnutý" aria-pressed="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 5 9H2v6h3l6 4z"/><g class="sound-waves"><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></g><path class="sound-off" d="m16 9 5 6m0-6-5 6"/></svg>
+        <span id="sound-label">Zvuk zapnutý</span>
+      </button>
+    </header>
+    <main id="app" data-state="ready">
+      <div class="intro">
+        <span class="eyebrow" id="eyebrow">CHVILKA ČEKÁNÍ, KOUSEK KOUZLA</span>
+        <h1 id="heading">Kouzelné vajíčko</h1>
+        <p id="message">Za jak dlouho se vajíčko vylíhne?</p>
+      </div>
+      <div class="experience">
+        <div class="scene" id="scene">
+          <svg class="scenery" viewBox="0 0 700 440" aria-hidden="true">
+            <defs><radialGradient id="halo"><stop stop-color="#ecebd3" stop-opacity=".7"/><stop offset="1" stop-color="#f9f6ee" stop-opacity="0"/></radialGradient><linearGradient id="hill" x2="0" y2="1"><stop stop-color="#e2e8d7"/><stop offset="1" stop-color="#f3f1e6"/></linearGradient></defs>
+            <ellipse cx="350" cy="217" rx="255" ry="210" fill="url(#halo)"/>
+            <g fill="#fff" opacity=".8"><path d="M92 130c-20 0-18-23-3-24 3-24 40-28 48-6 22-8 34 27 9 30z"/><path d="M526 91c-15 0-13-18-2-19 3-19 31-21 37-5 17-5 27 24 7 24z"/></g>
+            <g stroke="#cead64" stroke-width="2" stroke-linecap="round"><path d="M194 72v12m-6-6h12M514 193v12m-6-6h12M553 138v7m-3.5-3.5h7M151 215v8m-4-4h8"/></g>
+            <g fill="#d1aa67"><circle cx="253" cy="41" r="2.5"/><circle cx="464" cy="105" r="2"/><circle cx="126" cy="172" r="2"/></g>
+            <ellipse cx="350" cy="391" rx="235" ry="35" fill="url(#hill)"/>
+            <g stroke="#91a187" stroke-width="3" fill="#b6c4a5" stroke-linecap="round"><path d="M183 383q-29-44-34-76m13 35q-38 0-28-27 26 1 28 27m9 18q27-22 12-36-23 12-12 36"/><path d="M515 384q12-39 32-67m-23 43q-25-27-11-42 25 15 11 42m11-25q33 3 27-22-24-2-27 22"/></g>
+            <g fill="#e3b894"><circle cx="205" cy="383" r="5"/><circle cx="494" cy="386" r="4"/></g>
+            <g stroke="#a7b596" stroke-width="2" fill="none"><path d="m229 396-4-10m4 10 5-8m242 2 3-9m-3 9-4-6"/></g>
+          </svg>
+          <div class="egg-shadow"></div>
+          <div class="egg-motion" id="egg-motion">
+            <svg class="egg" viewBox="0 0 300 370" aria-label="Kouzelné vajíčko" role="img">
+              <defs>
+                <radialGradient id="shell" cx=".32" cy=".24" r=".85"><stop stop-color="#fffdf3"/><stop offset=".55" stop-color="#f7e6c3"/><stop offset=".87" stop-color="#e4c89d"/><stop offset="1" stop-color="#c5aa84"/></radialGradient>
+                <linearGradient id="shellInside" x2="0" y2="1"><stop stop-color="#d5b58c"/><stop offset="1" stop-color="#fff2d6"/></linearGradient>
+                <clipPath id="eggClip"><path d="M150 16C91 16 32 143 32 237c0 72 51 115 118 115s118-43 118-115C268 143 209 16 150 16Z"/></clipPath>
+                <clipPath id="upperClip"><path d="M0 0h300v207l-44 9-26-22-27 31-31-26-25 24-30-27-27 25-31-24-24 20L0 207Z"/></clipPath>
+                <clipPath id="lowerClip"><path d="m0 207 35 10 24-20 31 24 27-25 30 27 25-24 31 26 27-31 26 22 44-9v163H0Z"/></clipPath>
+                <g id="eggSurface"><path d="M150 16C91 16 32 143 32 237c0 72 51 115 118 115s118-43 118-115C268 143 209 16 150 16Z" fill="url(#shell)"/>
+                  <g fill="#c7a478" opacity=".32"><ellipse cx="106" cy="142" rx="8" ry="5" transform="rotate(-27 106 142)"/><ellipse cx="191" cy="190" rx="5" ry="8" transform="rotate(-20 191 190)"/><ellipse cx="79" cy="242" rx="5" ry="7"/><ellipse cx="166" cy="291" rx="8" ry="5"/><circle cx="213" cy="258" r="4"/><circle cx="154" cy="110" r="3"/><circle cx="125" cy="225" r="3"/><circle cx="110" cy="301" r="3"/><circle cx="221" cy="219" r="2.5"/></g>
+                  <path d="M125 47C92 73 66 135 62 180" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" opacity=".55"/>
+                  <path d="M197 319q-45 21-83 8" fill="none" stroke="#ae8e68" stroke-width="4" stroke-linecap="round" opacity=".13"/>
+                </g>
+              </defs>
+              <use id="egg-whole" href="#eggSurface"/>
+              <g id="shell-top" clip-path="url(#upperClip)"><use href="#eggSurface"/></g>
+              <g id="shell-bottom" clip-path="url(#lowerClip)"><use href="#eggSurface"/></g>
+              <g class="cracks" clip-path="url(#eggClip)" fill="none" stroke="#b49a78" stroke-width="2.4" stroke-linejoin="round"><path class="crack-main" d="m24 207 11 10 24-20 31 24 27-25 30 27 25-24 31 26 27-31 26 22 22-5"/><path class="crack-detail" d="m117 196-7-28 12-16m81 73 7 29-13 17m-50-48-7 27"/></g>
+            </svg>
+          </div>
+          <img id="animal" class="animal" alt="" width="400" height="400" hidden>
+          <div id="confetti" class="confetti-field" aria-hidden="true"></div>
+          <span class="scene-note" id="scene-note">Uvnitř čeká malé překvapení</span>
+        </div>
+        <div class="controls">
+          <section id="ready-controls" aria-label="Délka časovače">
+            <div class="duration-selector">
+              <button id="minus" class="step" type="button" aria-label="O minutu méně">−</button>
+              <div class="duration"><span id="minutes">3</span><span id="minute-word">minuty</span></div>
+              <button id="plus" class="step" type="button" aria-label="O minutu více">+</button>
+            </div>
+            <button id="start" class="primary" type="button"><span>Začít</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+          </section>
+          <section id="countdown-controls" aria-label="Odpočet" hidden>
+            <div id="time" class="time" role="timer" aria-label="Zbývající čas">03:00</div>
+            <p class="waiting-label">Zvířátko se už těší…</p>
+            <button id="cancel" class="quiet" type="button">Zrušit odpočet</button>
+          </section>
+          <section id="hatched-controls" hidden>
+            <h2 id="animal-name"></h2>
+            <button id="done" class="primary" type="button">Hotovo <span aria-hidden="true">✓</span></button>
+          </section>
+        </div>
+      </div>
+      <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
+      <p id="storage-note" class="storage-note" hidden>Prohlížeč neumožňuje uložení. Po zavření se odpočet nezachová.</p>
+      <noscript>Pro kouzelné líhnutí prosím povolte JavaScript.</noscript>
+    </main>
+    <footer><span aria-hidden="true">✧</span> Malá chvilka. Velké překvapení. <span aria-hidden="true">✧</span></footer>
+  </div>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
