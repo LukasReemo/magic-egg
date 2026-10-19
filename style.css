@@ -355,8 +355,10 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
   animation:shake .65s ease-in-out 2
 }
 .hatching .cracks{
-  animation:crack .5s .6s both
+  opacity:1;
+  animation:fade-cracks .2s 1.6s both
 }
+@keyframes fade-cracks{to{opacity:0}}
 .hatching #shell-top{
   transform-origin:50% 55%;
   animation:split-top 1.25s 1.6s cubic-bezier(.3,0,.4,1) both
@@ -711,4 +713,95 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
 }
 .hatching #egg-whole{
   visibility:hidden
+}
+
+/* One responsive coordinate system keeps the rocking shell inside the ring.
+   At 360px: inner radius 169.5px, visible shell half-height 141px;
+   the remaining clearance accommodates idle translation and all rocking. */
+.scene{
+  --egg-size:360px
+}
+.egg-progress{
+  position:absolute;
+  width:var(--egg-size);
+  height:var(--egg-size);
+  left:50%;
+  top:20px;
+  transform:translateX(-50%)
+}
+.egg-progress .egg-motion{
+  width:70%;
+  height:86.333333%;
+  left:15%;
+  top:6.833333%;
+  margin:0
+}
+.progress-ring{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  fill:none;
+  stroke-width:9;
+  opacity:0;
+  transition:opacity .25s;
+  pointer-events:none
+}
+.progress-track{
+  stroke:#e6e4d9
+}
+#progress-arc{
+  stroke:#a6bca3;
+  stroke-linecap:round;
+  stroke-dasharray:1;
+  stroke-dashoffset:0
+}
+main[data-state=countdown] .progress-ring{
+  opacity:1
+}
+main[data-state=countdown] .hatching .progress-ring{
+  opacity:0
+}
+.progressive-cracks path{
+  transition:var(--crack-transition, opacity .3s ease)
+}
+.crack-stage-2{opacity:var(--crack-2, 0)}
+.crack-stage-3{opacity:var(--crack-3, 0)}
+.crack-stage-4{opacity:var(--crack-4, 0)}
+/* Inherited properties also reach the SVG <use> instance trees in Safari. */
+.scene[data-crack-stage="2"],.scene[data-crack-stage="3"],.scene[data-crack-stage="4"]{--crack-2:1}
+.scene[data-crack-stage="3"],.scene[data-crack-stage="4"]{--crack-3:1}
+.scene[data-crack-stage="4"]{--crack-4:1}
+.syncing-cracks{--crack-transition:none}
+@media(max-height:949px){
+  .scene{--egg-size:310px}
+  .egg-progress{top:12px}
+}
+@media(min-width:700px) and (max-height:900px){
+  .scene{--egg-size:300px}
+  .egg-progress{top:0}
+}
+@media(max-width:500px){
+  .scene{--egg-size:280px}
+  .egg-progress{top:0}
+}
+@media(max-height:650px) and (max-width:699px){
+  .scene{--egg-size:215px}
+  .egg-progress{top:0}
+}
+
+/* Keep the numerical cue directly beneath the same component in both orientations. */
+.egg-progress .time{
+  display:none;
+  position:absolute;
+  top:calc(100% + 12px);
+  left:0;
+  width:100%;
+  font-size:52px
+}
+main[data-state=countdown] .egg-progress .time{
+  display:block
+}
+main[data-state=countdown] .scene{
+  min-height:calc(var(--egg-size) + 90px)
 }

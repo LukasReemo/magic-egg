@@ -25,10 +25,11 @@ On machines with a system Chromium, use `CHROMIUM_PATH=/usr/bin/chromium npm run
 ## Implementation
 
 - Plain HTML, CSS and ES modules; no frontend framework, backend, external font, analytics, CDN or runtime dependency.
-- `src/timer.js`: minute boundaries, Czech grammar, deadline arithmetic and random selection. Cryptographic rejection sampling chooses uniformly among all 30 animals initially, then among the 29 other animals.
+- `src/timer.js`: minute boundaries, Czech grammar, deadline arithmetic, clamped millisecond progress, crack stages and random selection. Cryptographic rejection sampling chooses uniformly among all 30 animals initially, then among the 29 other animals.
 - `src/state.js`: a small versioned localStorage record holds duration, sound preference, previous animal and current session. Completion saves the selected animal **before** choreography begins. Reloading a finished timer preserves its result.
 - `src/app.js`: three screen states, lifecycle synchronization, guarded completion, timeout cleanup and best-effort screen Wake Lock. The displayed seconds are derived from `Date.now()` and the saved deadline, never from an interval counter.
-- `src/audio.js`: a quiet, original four-note Web Audio jingle, unlocked on a tap. Audio failures cannot stop visual completion.
+- `src/audio.js`: the quiet four-note Web Audio jingle, gesture unlocking, source tracking and cancellable playback sequencing. Every jingle source must emit `ended` before the animal voice starts. Mute, Hotovo, cancellation, page exit and backgrounding stop active sources and discard queued audio.
+- `src/animal-sounds.js`: 30 original local synthesis recipes keyed by the existing animal IDs. Each combines its own rhythm, pitch contours, waveform, filtered breath/noise and optional vibrato. Voices last 0.5–2 seconds, with no downloads, paid APIs or runtime dependencies. Audio failures cannot stop visual completion.
 - `style.css`: layered SVG shell animation, a roughly three-second hatch, character entrance and short CSS confetti. Reduced motion uses a brief direct reveal.
 - All interface text, accessibility labels and animal names are Czech. Controls have generous touch targets, visible keyboard focus, safe-area support and responsive portrait/landscape layouts. Pinch zoom remains available.
 
@@ -38,7 +39,9 @@ All 30 animal illustrations are original local SVGs under `assets/animals/`, wit
 
 Edit the SVGs directly or edit `scripts/draw-animals.py` and run `python3 scripts/draw-animals.py` to regenerate the full set. Shared drawing helpers cover lighting and facial details; each animal's anatomy is composed separately. If adding an animal in a future version, update definitions, artwork, the generator count assertion, and tests together. This release intentionally contains exactly 30.
 
-The egg's independent top, bottom and crack layers live in `index.html`. The icons are local PNGs plus an SVG source in `assets/icon.svg`; maskable artwork has a padded safe area.
+The egg's independent top, bottom and crack layers live in `index.html`. A responsive square contains both the original shell and a thin sage SVG countdown ring with a neutral track. The shell scales proportionally with room for its animated bounds; the MM:SS cue sits directly below the ring in portrait and landscape. Animation frames read the same saved deadline as the numerical timer, with the existing interval as a lifecycle fallback. The arc is explicitly hidden at zero and the track fades before the shell fragments move.
+
+At 50%, 75% and 90% elapsed, cumulative rounded fracture paths appear on the original shell. Paths are clipped to the shell and included in both splitting halves, so the final hatch preserves them. Inherited CSS properties reach SVG `use` instances in Safari and Chromium. Restoring or resuming immediately sets the appropriate stage without replaying earlier transitions. No additional session state or scheduled crack timers are needed. The icons are local PNGs plus an SVG source in `assets/icon.svg`; maskable artwork has a padded safe area.
 
 ## Offline PWA and iPad installation
 
@@ -75,8 +78,10 @@ The active deadline survives refresh and reopening. If Safari suspends the app p
 
 The Node suite covers duration bounds/steps, Czech duration labels, MM:SS formatting, deadlines, background/resume, refresh, guarded completion, saved results, reset, preferences, corrupt/blocked storage, nonrepeating animal selection, exactly 30 local SVGs, manifest paths and generated cache coverage. Browser tests cover the complete flow, restored expired timers, reduced motion, viewport fit, offline reload and offline fetching of all 30 illustrations.
 
-Verified in this workspace: **11 Node tests, 10 Chromium browser tests (both orientations), and 5 WebKit browser tests passed**; the production build and `git diff --check` also passed. Local WebKit used temporary Debian libraries and a launcher because this host does not permit system package installation. CI uses the standard browser installation shown above. Physical iPad testing remains a device-level follow-up.
+The extended tests cover exact progress/stage boundaries, clamping and restoration; all 30 distinct sound mappings; actual audio completion ordering and cancellation; unavailable audio; smooth browser progress; visible crack pixels inside SVG instances; and shell clearance sampled along the curved artwork throughout its rocking cycles. Layout checks cover seven viewport sizes from 320×568 through iPad portrait and landscape. Existing flow, offline, preferences, reduced-motion and nonrepetition coverage remains in place.
+
+Verified in this workspace: **16 Node tests and 33 browser tests passed** (11 each in Chromium portrait, Chromium landscape and WebKit landscape), along with the production build and `git diff --check`. Review screenshots are linked below and in the feature pull request. Physical iPad testing remains a device-level follow-up. Local WebKit uses temporary Debian libraries and a launcher outside the repository; CI uses the standard Playwright browser installation above.
 
 Pages provisioning through the GitHub API returned `403 Resource not accessible by integration`; the manual **Settings → Pages → Source → GitHub Actions** selection above is required before the first deployment. This does not affect the app or pull request.
 
-Review images: [portrait](docs/ready-portrait.png), [landscape](docs/ready-landscape.png), [hatched](docs/hatched-landscape.png). These development screenshots are excluded from the deployed app.
+Review images: [full ring](docs/countdown-full-portrait.png), [halfway / first crack](docs/countdown-half-portrait.png), [additional cracks](docs/countdown-cracks-portrait.png), [final cracks in landscape](docs/countdown-final-landscape.png), [hatched](docs/hatched-landscape.png). Corresponding portrait and landscape images for all four countdown stages are in `docs/`. These development screenshots are excluded from the deployed app.
