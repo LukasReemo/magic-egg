@@ -146,7 +146,8 @@ test('animated shell stays within the ring at each stage and viewport', async ({
         // Sample the real curved artwork outline in SVG coordinates.
         const path=document.querySelector('#eggSurface > path');
         const length=path.getTotalLength(); let clearance=Infinity;
-        const radius=ring.width*(174-4.5)/360;
+        const stroke=Number.parseFloat(getComputedStyle(document.querySelector('#progress-ring')).strokeWidth);
+        const radius=ring.width*(174-stroke/2)/360;
         for(let i=0;i<=160;i++) {
           const p=path.getPointAtLength(length*i/160);
           const point=new DOMPoint(p.x,p.y).matrixTransform(matrix);
@@ -244,4 +245,21 @@ test('cracks actually render in the SVG use instances at every stage', async ({p
     images.push(await page.screenshot({clip:{x:box.x+box.width*.2,y:box.y+box.height*.38,width:box.width*.6,height:box.height*.42}}));
   }
   for(let i=1;i<images.length;i++) expect(images[i].equals(images[i-1])).toBe(false);
+});
+
+
+test('countdown ring has a clear backdrop and thicker outline in both orientations', async ({page}) => {
+  await page.goto('./');
+  await expect(page.locator('.scenery-ground')).toBeVisible();
+  await page.locator('#start').click();
+  for(const viewport of [{width:820,height:1180},{width:1180,height:820}]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('#progress-ring')).toHaveCSS('stroke-width','12px');
+    await expect(page.locator('.scenery-ground')).toHaveCSS('visibility','hidden');
+    await expect(page.locator('.egg-shadow')).toHaveCSS('visibility','hidden');
+    await expect(page.locator('#progress-ring')).toHaveCSS('opacity','1');
+  }
+  await page.locator('#cancel').click();
+  await expect(page.locator('.scenery-ground')).toBeVisible();
+  await expect(page.locator('.egg-shadow')).toBeVisible();
 });

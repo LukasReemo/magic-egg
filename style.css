@@ -716,7 +716,7 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
 }
 
 /* One responsive coordinate system keeps the rocking shell inside the ring.
-   At 360px: inner radius 169.5px, visible shell half-height 141px;
+   At 360px: inner radius 168px, visible shell half-height 141px;
    the remaining clearance accommodates idle translation and all rocking. */
 .scene{
   --egg-size:360px
@@ -742,7 +742,7 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
   width:100%;
   height:100%;
   fill:none;
-  stroke-width:9;
+  stroke-width:12;
   opacity:0;
   transition:opacity .25s;
   pointer-events:none
@@ -804,4 +804,11 @@ main[data-state=countdown] .egg-progress .time{
 }
 main[data-state=countdown] .scene{
   min-height:calc(var(--egg-size) + 90px)
+}
+
+/* Ground decoration belongs to the resting/revealed character. Give the
+   countdown ring a clear backdrop all the way around, including at six o'clock. */
+main[data-state=countdown] .scenery-ground,
+main[data-state=countdown] .egg-shadow{
+  visibility:hidden
 }
