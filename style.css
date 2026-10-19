@@ -144,20 +144,18 @@ h1{
   user-select:none;
   -webkit-user-select:none
 }
+/* The 700×440 decoration uses the same scale as the 360×360 egg square,
+   with its (350,220) center aligned to the ring center. */
 .scenery{
   position:absolute;
-  width:100%;
-  height:100%;
-  inset:0;
+  width:194.444444%;
+  height:122.222222%;
+  left:-47.222222%;
+  top:-11.111111%;
   z-index:-2
 }
 .egg-motion{
   position:absolute;
-  width:222px;
-  height:274px;
-  left:50%;
-  top:39px;
-  margin-left:-111px;
   transform-origin:50% 92%;
   animation:breathe 6s ease-in-out infinite
 }
@@ -166,17 +164,6 @@ h1{
   height:100%;
   overflow:visible;
   filter:drop-shadow(0 7px 5px #6e5a3b16)
-}
-.egg-shadow{
-  position:absolute;
-  background:#77745020;
-  width:164px;
-  height:17px;
-  border-radius:50%;
-  bottom:46px;
-  left:50%;
-  transform:translateX(-50%);
-  filter:blur(6px)
 }
 .scene-note{
   position:absolute;
@@ -373,18 +360,11 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
 .hatching .animal{
   animation:emerge 1.1s 1.9s cubic-bezier(.2,.9,.3,1.15) both
 }
-.hatching .egg-shadow{
-  opacity:.5
-}
 .hatched .egg-motion{
   visibility:hidden
 }
 .hatched .animal{
   animation:settle 4s 1s ease-in-out infinite
-}
-.hatched .egg-shadow{
-  width:190px;
-  opacity:.5
 }
 @keyframes breathe{
   0%,100%{
@@ -495,19 +475,10 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
     height:430px;
     width:700px
   }
-  .egg-motion{
-    width:260px;
-    height:321px;
-    margin-left:-130px;
-    top:45px
-  }
   .animal{
     width:370px;
     height:370px;
     top:15px
-  }
-  .egg-shadow{
-    bottom:53px
   }
   .controls{
     margin-top:25px
@@ -561,16 +532,6 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
     max-width:none;
     margin-left:-20px
   }
-  .egg-motion{
-    top:29px;
-    width:195px;
-    height:241px;
-    margin-left:-97.5px
-  }
-  .egg-shadow{
-    bottom:40px;
-    width:145px
-  }
   .animal{
     width:280px;
     height:280px;
@@ -614,12 +575,6 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
     height:340px;
     margin:0
   }
-  .egg-motion{
-    top:27px;
-    width:220px;
-    height:271px;
-    margin-left:-110px
-  }
   .animal{
     top:0;
     width:310px;
@@ -637,27 +592,14 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
   footer{
     padding:10px 0 18px
   }
-  .egg-shadow{
-    bottom:33px
-  }
 }
 @media(max-height:650px) and (max-width:699px){
   .scene{
     height:240px
   }
-  .egg-motion{
-    top:14px;
-    width:145px;
-    height:179px;
-    margin-left:-72.5px
-  }
   .animal{
     width:210px;
     height:210px
-  }
-  .egg-shadow{
-    bottom:42px;
-    width:110px
   }
   .duration-selector{
     margin-bottom:14px
@@ -724,7 +666,7 @@ main[data-state=countdown] .scene-note,main[data-state=hatched] .scene-note{
 .egg-progress{
   position:absolute;
   width:var(--egg-size);
-  height:var(--egg-size);
+  aspect-ratio:1;
   left:50%;
   top:20px;
   transform:translateX(-50%)
@@ -806,9 +748,8 @@ main[data-state=countdown] .scene{
   min-height:calc(var(--egg-size) + 90px)
 }
 
-/* Ground decoration belongs to the resting/revealed character. Give the
-   countdown ring a clear backdrop all the way around, including at six o'clock. */
-main[data-state=countdown] .scenery-ground,
-main[data-state=countdown] .egg-shadow{
-  visibility:hidden
-}
+.sound-credits{max-width:620px;margin:12px auto 0;letter-spacing:0;line-height:1.6}
+.sound-credits summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.sound-credits ul{text-align:left;padding-left:20px}
+.sound-credits li{margin:8px 0}
+.sound-credits a{color:inherit}

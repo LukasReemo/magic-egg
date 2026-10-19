@@ -22,8 +22,8 @@ def paws(c,y=330): return ellipse(154,y,28,17,c)+ellipse(246,y,28,17,c)
 def face(x,y,gap=28): return eyes(x,y,gap)+blush(x,y+18,gap+18)+smile(x,y+33)
 def spots(items,c): return ''.join(ellipse(*item,c) for item in items)
 def write(id,name,color,body):
-    # Directional gradients, a soft contact shadow, and a tiny paper-grain treatment.
-    svg=f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-labelledby="title"><title id="title">{escape(name)}</title><defs><linearGradient id="fur" x1=".15" y1="0" x2=".8" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="{color}"/><stop offset="1" stop-color="{color}" stop-opacity=".78"/></linearGradient><radialGradient id="warm"><stop stop-color="#fffaf0"/><stop offset="1" stop-color="#f0e3cc"/></radialGradient><filter id="soft" x="-.2" y="-.2" width="1.4" height="1.4"><feDropShadow dx="0" dy="4" stdDeviation="2" flood-color="#594332" flood-opacity=".1"/></filter></defs>{ellipse(200,350,105,12,'#6f7653','opacity=".10"')}<g filter="url(#soft)">{body}</g></svg>'''
+    # Directional gradients and soft edge shading; no ground or contact platform.
+    svg=f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-labelledby="title"><title id="title">{escape(name)}</title><defs><linearGradient id="fur" x1=".15" y1="0" x2=".8" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="{color}"/><stop offset="1" stop-color="{color}" stop-opacity=".78"/></linearGradient><radialGradient id="warm"><stop stop-color="#fffaf0"/><stop offset="1" stop-color="#f0e3cc"/></radialGradient><filter id="soft" x="-.2" y="-.2" width="1.4" height="1.4"><feDropShadow dx="0" dy="4" stdDeviation="2" flood-color="#594332" flood-opacity=".1"/></filter></defs><g filter="url(#soft)">{body}</g></svg>'''
     (OUT/f'{id}.svg').write_text(svg+'\n')
 F='url(#fur)'; W='url(#warm)'
 # Dog: flopping velvet ears, a patch around one eye, wagging tail and soft muzzle.
