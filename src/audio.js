@@ -1,89 +1,112 @@
 import { animalSounds } from './animal-sounds.js';
 
-// Every source, including noise and modulation, belongs to one cancellable run.
-// onended (the audio clock) advances the sequence, never a visual timeout.
-export function createAudioPlayer(getContext) {
+const decoded = new Map();
+async function fetchRecording(id, context) {
+  const recording = animalSounds[id];
+  if (!recording || !context) return null;
+  if (!decoded.has(id)) {
+    const loading = (async () => {
+      const response = await fetch(recording.asset);
+      if (!response.ok) throw new Error('Recording unavailable');
+      return context.decodeAudioData(await response.arrayBuffer());
+    })();
+    decoded.set(id, loading);
+    loading.catch(() => { if (decoded.get(id) === loading) decoded.delete(id); });
+  }
+  return decoded.get(id);
+}
+
+// The jingle keeps its original four notes and envelopes. Animal voices are
+// decoded local recordings: no animal oscillators, modulation or noise recipes.
+export function createAudioPlayer(getContext, loadRecording = fetchRecording) {
   let generation = 0;
-  const active = new Set();
+  const active = new Map();
   const pending = new Set();
   function stop() {
     generation++;
     for (const cancel of pending) cancel();
     pending.clear();
-    for (const source of active) { try { source.stop(); } catch { /* Already ended. */ } }
-    active.clear();
+    for (const [source, cleanup] of active) {
+      try { source.stop(); } catch { /* Already ended. */ }
+      cleanup();
+    }
   }
-  function play(notes, token) {
+  function play(token, schedule) {
     const context = getContext();
     if (token !== generation || !context || context.state !== 'running') return Promise.resolve(false);
     return new Promise(resolve => {
       let count = 0, settled = false;
-      const settle = ok => { if (settled) return; settled = true; pending.delete(cancel); resolve(ok); };
+      const settle = ok => { if (!settled) { settled = true; pending.delete(cancel); resolve(ok); } };
       const cancel = () => settle(false);
       pending.add(cancel);
       const track = (source, connections, start, end) => {
-        count++; active.add(source);
-        source.onended = () => {
+        count++;
+        let ended = false;
+        const cleanup = () => {
+          if (ended) return;
+          ended = true;
           active.delete(source);
           for (const node of [source, ...connections]) node.disconnect();
           if (--count === 0) settle(token === generation);
         };
-        source.start(start); source.stop(end);
+        active.set(source, cleanup);
+        source.onended = cleanup;
+        source.start(start);
+        if (end !== undefined) source.stop(end);
       };
       try {
-        const base = context.currentTime + .015;
-        for (const note of notes) {
-          const start = base + note.at, end = start + note.duration;
-          const gain = context.createGain(), filter = context.createBiquadFilter();
-          filter.type = 'lowpass'; filter.frequency.value = note.filter;
-          gain.gain.setValueAtTime(0, start);
-          gain.gain.linearRampToValueAtTime(note.level, start + Math.min(.035, note.duration / 4));
-          gain.gain.exponentialRampToValueAtTime(.0001, end);
-          filter.connect(gain).connect(context.destination);
-          const oscillator = context.createOscillator();
-          oscillator.type = note.wave;
-          note.pitches.forEach((pitch, i) => {
-            const at = start + i * note.duration / (note.pitches.length - 1);
-            if (i === 0) oscillator.frequency.setValueAtTime(pitch, at);
-            else oscillator.frequency.exponentialRampToValueAtTime(pitch, at);
-          });
-          oscillator.connect(filter);
-          track(oscillator, [filter, gain], start, end);
-          if (note.vibrato) {
-            const lfo = context.createOscillator(), depth = context.createGain();
-            lfo.frequency.value = note.rate; depth.gain.value = note.vibrato;
-            lfo.connect(depth).connect(oscillator.frequency);
-            track(lfo, [depth], start, end);
-          }
-          if (note.noise) {
-            const source = context.createBufferSource(), noiseGain = context.createGain();
-            const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * note.duration), context.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-            source.buffer = buffer; noiseGain.gain.value = note.noise;
-            source.connect(noiseGain).connect(filter);
-            track(source, [noiseGain], start, end);
-          }
-        }
+        schedule(context, track);
         if (count === 0) settle(true);
       } catch { stop(); settle(false); }
     });
   }
+  function celebration(token) {
+    return play(token, (context, track) => {
+      const base = context.currentTime + .015;
+      [523.25,659.25,783.99,1046.5].forEach((pitch, i) => {
+        const start = base + i * .16, end = start + .7;
+        const gain = context.createGain(), filter = context.createBiquadFilter();
+        filter.type = 'lowpass'; filter.frequency.value = 4000;
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(.075, start + .035);
+        gain.gain.exponentialRampToValueAtTime(.0001, end);
+        filter.connect(gain).connect(context.destination);
+        const source = context.createOscillator();
+        source.type = 'sine'; source.frequency.setValueAtTime(pitch, start);
+        source.frequency.exponentialRampToValueAtTime(pitch, end);
+        source.connect(filter);
+        track(source, [filter, gain], start, end);
+      });
+    });
+  }
+  function prepare(id) {
+    try { return Promise.resolve(loadRecording(id, getContext())).catch(() => null); }
+    catch { return Promise.resolve(null); }
+  }
   async function reveal(animalId) {
     stop();
     const token = generation;
-    const jingle = [523.25,659.25,783.99,1046.5].map((pitch,i) => ({ at:i*.16, duration:.7, pitches:[pitch,pitch], wave:'sine', level:.075, filter:4000 }));
-    if (await play(jingle, token) && token === generation && animalSounds[animalId]) {
-      await play(animalSounds[animalId], token);
-    }
+    // Fetch/decode while the jingle plays; source creation still waits for ended.
+    const recording = prepare(animalId);
+    if (!await celebration(token) || token !== generation) return;
+    const buffer = await recording;
+    if (!buffer || token !== generation || buffer.duration > 3) return;
+    await play(token, (context, track) => {
+      const source = context.createBufferSource(), gain = context.createGain();
+      source.buffer = buffer;
+      gain.gain.value = .8;
+      source.connect(gain).connect(context.destination);
+      track(source, [gain], context.currentTime + .015);
+    });
   }
-  return { stop, reveal };
+  return { stop, reveal, prepare };
 }
 
 let context;
 const player = createAudioPlayer(() => context);
 export const stopAudio = () => player.stop();
 export const playReveal = id => player.reveal(id);
+export const prepareRecording = id => player.prepare(id);
 export function unlockAudio() {
   try {
     context ??= new (window.AudioContext || window.webkitAudioContext)();

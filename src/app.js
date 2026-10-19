@@ -1,7 +1,7 @@
 import { animals } from './animals.js';
 import { clampMinutes, minuteLabel, remaining, formatTime, countdownProgress } from './timer.js';
 import { readState, saveState, startSession, completeSession, resetSession } from './state.js';
-import { unlockAudio, playReveal, stopAudio } from './audio.js';
+import { unlockAudio, playReveal, stopAudio, prepareRecording } from './audio.js';
 import { confetti } from './celebration.js';
 const $ = id => document.getElementById(id);
 let storage;
@@ -73,6 +73,7 @@ function showAnimal(animal, animate) {
     $('announcement').textContent = `Vylíhlo se zvířátko: ${animal.name}.`;
   };
   if (!animate) { finish(); return; }
+  if (state.sound) void prepareRecording(animal.id);
   $('scene').className = 'scene hatching';
   $('time').textContent = '00:00';
   $('cancel').disabled = true;
@@ -91,11 +92,11 @@ function tick(immediate = false) {
   const { fraction, stage } = countdownProgress(state.session.deadline, state.session.minutes * 60_000, now);
   $('progress-arc').style.strokeDashoffset = String(1 - fraction);
   $('progress-arc').style.visibility = fraction === 0 ? 'hidden' : 'visible';
-  $('scene').classList.toggle('syncing-cracks', immediate);
-  $('scene').dataset.crackStage = String(stage);
+  const scene = $('scene');
+  scene.classList.toggle('syncing-cracks', immediate);
+  if (scene.dataset.crackStage !== String(stage)) scene.dataset.crackStage = String(stage);
   const label = formatTime(seconds);
   if ($('time').textContent !== label) $('time').textContent = label;
-  const scene = $('scene');
   scene.classList.toggle('anticipating', stage === 3 && seconds > 0);
   scene.classList.toggle('imminent', stage === 4 && seconds > 0);
   if (seconds > 0) return;

@@ -30,21 +30,14 @@
       </div>
       <div class="experience">
         <div class="scene" id="scene">
-          <svg class="scenery" viewBox="0 0 700 440" aria-hidden="true">
-            <defs><radialGradient id="halo"><stop stop-color="#ecebd3" stop-opacity=".7"/><stop offset="1" stop-color="#f9f6ee" stop-opacity="0"/></radialGradient><linearGradient id="hill" x2="0" y2="1"><stop stop-color="#e2e8d7"/><stop offset="1" stop-color="#f3f1e6"/></linearGradient></defs>
-            <ellipse cx="350" cy="217" rx="255" ry="210" fill="url(#halo)"/>
-            <g fill="#fff" opacity=".8"><path d="M92 130c-20 0-18-23-3-24 3-24 40-28 48-6 22-8 34 27 9 30z"/><path d="M526 91c-15 0-13-18-2-19 3-19 31-21 37-5 17-5 27 24 7 24z"/></g>
-            <g stroke="#cead64" stroke-width="2" stroke-linecap="round"><path d="M194 72v12m-6-6h12M514 193v12m-6-6h12M553 138v7m-3.5-3.5h7M151 215v8m-4-4h8"/></g>
-            <g fill="#d1aa67"><circle cx="253" cy="41" r="2.5"/><circle cx="464" cy="105" r="2"/><circle cx="126" cy="172" r="2"/></g>
-            <g class="scenery-ground">
-            <ellipse cx="350" cy="391" rx="235" ry="35" fill="url(#hill)"/>
-            <g stroke="#91a187" stroke-width="3" fill="#b6c4a5" stroke-linecap="round"><path d="M183 383q-29-44-34-76m13 35q-38 0-28-27 26 1 28 27m9 18q27-22 12-36-23 12-12 36"/><path d="M515 384q12-39 32-67m-23 43q-25-27-11-42 25 15 11 42m11-25q33 3 27-22-24-2-27 22"/></g>
-            <g fill="#e3b894"><circle cx="205" cy="383" r="5"/><circle cx="494" cy="386" r="4"/></g>
-            <g stroke="#a7b596" stroke-width="2" fill="none"><path d="m229 396-4-10m4 10 5-8m242 2 3-9m-3 9-4-6"/></g>
-            </g>
-          </svg>
-          <div class="egg-shadow"></div>
           <div class="egg-progress">
+            <svg class="scenery" viewBox="0 0 700 440" aria-hidden="true">
+              <defs><radialGradient id="halo"><stop stop-color="#ecebd3" stop-opacity=".7"/><stop offset="1" stop-color="#f9f6ee" stop-opacity="0"/></radialGradient></defs>
+              <ellipse cx="350" cy="217" rx="255" ry="210" fill="url(#halo)"/>
+              <g class="clouds" fill="#fff" opacity=".8"><path d="M92 130c-20 0-18-23-3-24 3-24 40-28 48-6 22-8 34 27 9 30z"/><path d="M526 91c-15 0-13-18-2-19 3-19 31-21 37-5 17-5 27 24 7 24z"/></g>
+              <g class="stars" stroke="#cead64" stroke-width="2" stroke-linecap="round"><path d="M194 72v12m-6-6h12M564 193v12m-6-6h12M553 138v7m-3.5-3.5h7M151 215v8m-4-4h8"/></g>
+              <g fill="#d1aa67"><circle cx="253" cy="41" r="2.5"/><circle cx="514" cy="105" r="2"/><circle cx="126" cy="172" r="2"/></g>
+            </svg>
             <svg id="progress-ring" class="progress-ring" viewBox="0 0 360 360" aria-hidden="true">
               <circle class="progress-track" cx="180" cy="180" r="174"/>
               <circle id="progress-arc" cx="180" cy="180" r="174" pathLength="1" transform="rotate(-90 180 180)"/>
@@ -103,7 +96,7 @@
       <p id="storage-note" class="storage-note" hidden>Prohlížeč neumožňuje uložení. Po zavření se odpočet nezachová.</p>
       <noscript>Pro kouzelné líhnutí prosím povolte JavaScript.</noscript>
     </main>
-    <footer><span aria-hidden="true">✧</span> Malá chvilka. Velké překvapení. <span aria-hidden="true">✧</span></footer>
+    <footer><span aria-hidden="true">✧</span> Malá chvilka. Velké překvapení. <span aria-hidden="true">✧</span><details class="sound-credits"><summary>Zvuky a licence</summary><ul><!-- SOUND_CREDITS --></ul></details></footer>
   </div>
   <script type="module" src="./src/app.js"></script>
 </body>

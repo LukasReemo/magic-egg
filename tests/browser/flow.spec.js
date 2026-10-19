@@ -98,19 +98,20 @@ test('viewport fits, SVG images decode, reduced motion still reveals', async ({p
 test('smooth progress and cumulative cracking follow the deadline through resume and reload', async ({page}) => {
   await page.clock.install();
   await page.goto('./');
+  await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+1000)));
   await page.locator('#sound').click(); await page.locator('#start').click();
   const arc=page.locator('#progress-arc'), scene=page.locator('#scene');
-  expect(Number(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeLessThan(.002);
+  expect(Number.parseFloat(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeLessThan(.002);
   await expect(scene).toHaveAttribute('data-crack-stage','1');
   await page.clock.fastForward(89_000);
   await expect(scene).toHaveAttribute('data-crack-stage','1');
   await page.clock.fastForward(1000);
   await expect(scene).toHaveAttribute('data-crack-stage','2');
-  expect(Number(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeCloseTo(.5,2);
+  expect(Number.parseFloat(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeCloseTo(.5,2);
   await page.clock.runFor(100);
-  const before=Number(await arc.evaluate(el=>el.style.strokeDashoffset));
+  const before=Number.parseFloat(await arc.evaluate(el=>el.style.strokeDashoffset));
   await page.clock.runFor(50);
-  expect(Number(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeGreaterThan(before);
+  expect(Number.parseFloat(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeGreaterThan(before);
   await page.clock.fastForward(44_850);
   await expect(scene).toHaveAttribute('data-crack-stage','3');
   await page.clock.fastForward(27_000);
@@ -155,7 +156,7 @@ test('animated shell stays within the ring at each stage and viewport', async ({
         }
         return {clearance,inside:ring.x>=0 && ring.right<=innerWidth && ring.y>=0,overflow:document.documentElement.scrollWidth>innerWidth};
       });
-      expect(fit.clearance).toBeGreaterThan(10);
+      expect(fit.clearance).toBeGreaterThan(page.viewportSize().width>=700?16:10);
       expect(fit.inside).toBe(true); expect(fit.overflow).toBe(false);
     }
   }
@@ -186,15 +187,17 @@ test('mute, Hotovo and audio failure leave no queued sound and never block the r
 test('Hotovo and mute stop real audio orchestration, including queued animal playback', async ({page}) => {
   await page.clock.install();
   await page.addInitScript(()=>{
+    crypto.getRandomValues=buffer=>{buffer.fill(0);return buffer;};
     window.voices=[];
     const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}});
     const node=()=>({connect(){return this;},disconnect(){},gain:param(),frequency:param()});
-    const source=()=>{const s={...node(),start(){},stop(at){if(at===undefined)this.cancelled=true;}}; window.voices.push(s); return s;};
+    const source=()=>{const s={...node(),start(){if(this.buffer?.duration)this.recording=true;},stop(at){if(at===undefined)this.cancelled=true;}}; window.voices.push(s); return s;};
     window.AudioContext=class {
       state='running'; currentTime=0; sampleRate=1000; destination=node();
       createOscillator(){const s=source();s.voice=true;return s;}
       createBufferSource(){return source();}
       createGain(){return node();} createBiquadFilter(){return node();}
+      decodeAudioData(){return Promise.resolve({duration:1});}
       createBuffer(c,n){return {getChannelData:()=>new Float32Array(n)};}
     };
   });
@@ -209,9 +212,10 @@ test('Hotovo and mute stop real audio orchestration, including queued animal pla
   await page.locator('#start').click(); await page.clock.fastForward(180_000); await page.clock.fastForward(3_200);
   expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBe(8);
   await page.evaluate(()=>voices.filter(s=>s.voice).slice(4).forEach(s=>s.onended?.()));
-  expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBeGreaterThan(8);
+  await expect.poll(()=>page.evaluate(()=>voices.filter(s=>s.recording).length)).toBe(1);
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBe(8);
   await page.locator('#sound').click();
-  expect(await page.evaluate(()=>voices.filter(s=>s.voice).slice(8).every(s=>s.cancelled))).toBe(true);
+  expect(await page.evaluate(()=>voices.filter(s=>s.recording).every(s=>s.cancelled))).toBe(true);
   await page.locator('#done').click();
   await expect(page.locator('#start')).toBeVisible();
 });
@@ -248,18 +252,67 @@ test('cracks actually render in the SVG use instances at every stage', async ({p
 });
 
 
-test('countdown ring has a clear backdrop and thicker outline in both orientations', async ({page}) => {
+test('floating scene retains clouds and stars without ground in any state', async ({page}) => {
   await page.goto('./');
-  await expect(page.locator('.scenery-ground')).toBeVisible();
+  await expect(page.locator('.scenery-ground, .egg-shadow, #hill')).toHaveCount(0);
+  await expect(page.locator('.clouds')).toBeVisible(); await expect(page.locator('.stars')).toBeVisible();
   await page.locator('#start').click();
   for(const viewport of [{width:820,height:1180},{width:1180,height:820}]) {
     await page.setViewportSize(viewport);
     await expect(page.locator('#progress-ring')).toHaveCSS('stroke-width','12px');
-    await expect(page.locator('.scenery-ground')).toHaveCSS('visibility','hidden');
-    await expect(page.locator('.egg-shadow')).toHaveCSS('visibility','hidden');
     await expect(page.locator('#progress-ring')).toHaveCSS('opacity','1');
+    const fit=await page.evaluate(()=>{
+      const ring=document.querySelector('#progress-ring').getBoundingClientRect();
+      const cx=ring.x+ring.width/2,cy=ring.y+ring.height/2;
+      let clearance=Infinity;
+      for(const path of document.querySelectorAll('.clouds path, .stars path')) {
+        const length=path.getTotalLength(),matrix=path.getScreenCTM();
+        for(let i=0;i<=100;i++) {
+          const p=path.getPointAtLength(length*i/100);
+          const q=new DOMPoint(p.x,p.y).matrixTransform(matrix);
+          clearance=Math.min(clearance,Math.hypot(q.x-cx,q.y-cy)-ring.width/2);
+        }
+      }
+      return {clearance,circular:Math.abs(ring.width-ring.height)<.1};
+    });
+    expect(fit.circular).toBe(true); expect(fit.clearance).toBeGreaterThan(8);
   }
   await page.locator('#cancel').click();
-  await expect(page.locator('.scenery-ground')).toBeVisible();
-  await expect(page.locator('.egg-shadow')).toBeVisible();
+  await expect(page.locator('.scenery-ground, .egg-shadow')).toHaveCount(0);
+});
+
+test('all local recordings decode as mono audio under three seconds, also offline', async ({page,context}) => {
+  await page.goto('./'); await cached(page); await context.setOffline(true);
+  const recordings=await page.evaluate(async()=>{
+    const {animalSounds}=await import('./src/animal-sounds.js');
+    const decoder=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,1,44100);
+    const results=[];
+    for(const [id,recording] of Object.entries(animalSounds)) {
+      if(!recording)continue;
+      const response=await fetch(recording.asset);
+      const decoded=await decoder.decodeAudioData(await response.arrayBuffer());
+      const samples=decoded.getChannelData(0);
+      let peak=0,energy=0;
+      for(const sample of samples){peak=Math.max(peak,Math.abs(sample));energy+=sample*sample;}
+      results.push({id,ok:response.ok,duration:decoded.duration,channels:decoded.numberOfChannels,peak,rms:Math.sqrt(energy/samples.length)});
+    }
+    return results;
+  });
+  expect(recordings).toHaveLength(22);
+  for(const clip of recordings) {
+    expect(clip.ok).toBe(true);expect(clip.channels).toBe(1);
+    expect(clip.duration).toBeGreaterThan(0);expect(clip.duration).toBeLessThanOrEqual(3);
+    expect(clip.peak).toBeLessThan(.54);expect(clip.rms).toBeGreaterThan(.001);
+  }
+  await page.locator('.sound-credits summary').click();
+  await expect(page.locator('.sound-credits li')).toHaveCount(22);
+});
+
+test('silent animal restores and resets normally without a progress ring', async ({page}) => {
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await seed(page,{...saved,sound:true,session:{status:'hatched',animal:'panda'}});
+  await page.goto('./');
+  await expect(page.locator('#animal-name')).toHaveText('Panda');
+  await expect(page.locator('#progress-ring')).toHaveCSS('opacity','0');
+  await page.locator('#done').click();await expect(page.locator('#start')).toBeVisible();
 });

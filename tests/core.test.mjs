@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, access, readdir } from 'node:fs/promises';
 import { animals } from '../src/animals.js';
 import { clampMinutes, minuteLabel, remaining, formatTime, chooseAnimal } from '../src/timer.js';
@@ -86,6 +87,7 @@ test('production cache includes all application and animal files and changes wit
   const worker = await readFile(new URL('../dist/sw.js',import.meta.url),'utf8');
   assert.match(worker,/magic-egg-[a-f0-9]{16}/);
   for (const animal of animals) assert.ok(worker.includes(animal.asset));
+  for (const recording of Object.values(animalSounds).filter(Boolean)) assert.ok(worker.includes(recording.asset));
   for (const asset of ['./index.html','./src/app.js','./src/audio.js','./src/animal-sounds.js','./style.css','./manifest.webmanifest']) assert.ok(worker.includes(asset));
   assert.ok(worker.includes('self.registration.scope'));
   assert.ok(!worker.includes('skipWaiting()'));
@@ -103,43 +105,54 @@ test('visual progress clamps the deadline fraction and changes cracks at exact b
   const restored = restoreState(JSON.stringify(state));
   assert.deepEqual(countdownProgress(restored.session.deadline,180_000,162_000),{fraction:.1,stage:4});
 });
-test('all thirty animal IDs have distinct, bounded, locally synthesized voices', () => {
+test('recordings map to existing IDs, have verified provenance, and match committed MP3 files', async () => {
   assert.deepEqual(Object.keys(animalSounds).sort(),animals.map(a=>a.id).sort());
-  assert.equal(new Set(Object.values(animalSounds).map(JSON.stringify)).size,30);
-  for (const notes of Object.values(animalSounds)) {
-    const duration = Math.max(...notes.map(n=>n.at+n.duration));
-    assert.ok(duration>=.5 && duration<=2);
-    for (const n of notes) {
-      assert.ok(n.level<=.075 && n.level>0);
-      assert.ok(n.pitches.length>=2 && n.pitches.every(p=>p>0 && p<4000));
-    }
+  const manifest=JSON.parse(await readFile(new URL('../assets/sounds/animals/sources.json',import.meta.url),'utf8'));
+  const present=Object.entries(animalSounds).filter(([,value])=>value);
+  assert.equal(present.length,22);
+  assert.equal(Object.keys(manifest.silentAnimals).length,8);
+  assert.equal(new Set(manifest.recordings.map(r=>r.sha256)).size,22);
+  const docs=await readFile(new URL('../SOUND_SOURCES.md',import.meta.url),'utf8');
+  for (const [id,definition] of Object.entries(animalSounds)) {
+    if(!definition) { assert.ok(manifest.silentAnimals[id]); continue; }
+    const source=manifest.recordings.find(r=>r.id===id);
+    assert.ok(source && source.author && source.title && source.url && source.licenseUrl);
+    assert.match(definition.asset,new RegExp(`^\\./assets/sounds/animals/${id}\\.mp3$`));
+    assert.equal(definition.asset,source.asset); assert.equal(definition.duration,source.duration);
+    assert.ok(source.duration>0 && source.duration<=3);
+    const asset=await readFile(new URL('../'+definition.asset.slice(2),import.meta.url));
+    assert.equal(asset.length,source.bytes);
+    assert.equal(createHash('sha256').update(asset).digest('hex'),source.sha256);
+    assert.ok(docs.includes(source.url) && docs.includes(source.author));
   }
 });
 function fakeAudio() {
   const sources = [];
   const param = () => ({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}});
   const node = () => ({connect(){return this;},disconnect(){},gain:param(),frequency:param()});
-  const source = () => {
-    const s = {...node(),start(at){this.startAt=at;},stop(at){if(at===undefined)this.cancelled=true;else this.endAt=at;},end(){this.onended?.();}};
+  const source = (kind = 'recording') => {
+    const s = {kind,...node(),start(at){this.startAt=at;},stop(at){if(at===undefined)this.cancelled=true;else this.endAt=at;},end(){this.onended?.();}};
     sources.push(s); return s;
   };
-  return {sources,context:{state:'running',currentTime:0,sampleRate:1000,destination:node(),createOscillator:source,createGain:node,createBiquadFilter:node,createBufferSource:source,createBuffer:(channels,length)=>({getChannelData:()=>new Float32Array(length)})}};
+  return {sources,context:{state:'running',currentTime:0,sampleRate:1000,destination:node(),createOscillator:()=>source('oscillator'),createGain:node,createBiquadFilter:node,createBufferSource:source,createBuffer:(channels,length)=>({getChannelData:()=>new Float32Array(length)})}};
 }
 test('animal playback waits for every celebration source to actually finish', async () => {
-  const {sources,context} = fakeAudio(); const player=createAudioPlayer(()=>context);
+  const {sources,context} = fakeAudio(); const player=createAudioPlayer(()=>context,async ()=>({duration:1}));
   const run=player.reveal('dog');
   assert.equal(sources.length,4);
   sources[3].end(); sources[0].end(); sources[1].end();
   await Promise.resolve(); assert.equal(sources.length,4);
   context.currentTime=2; sources[2].end(); await Promise.resolve();
-  assert.ok(sources.length>4); assert.ok(sources.slice(4).every(s=>s.startAt>=2));
+  await new Promise(setImmediate);
+  assert.equal(sources.length,5); assert.equal(sources[4].kind,'recording');
+  assert.ok(sources[4].startAt>=2);
   for (const s of sources.slice(4)) s.end(); await run;
 });
 test('cancellation drops pending animal calls and stops active voices', async () => {
   for (const duringAnimal of [false,true]) {
-    const {sources,context}=fakeAudio(); const player=createAudioPlayer(()=>context);
+    const {sources,context}=fakeAudio(); const player=createAudioPlayer(()=>context,async ()=>({duration:1}));
     const run=player.reveal('cat');
-    if (duringAnimal) { sources.slice().forEach(s=>s.end()); await Promise.resolve(); }
+    if (duringAnimal) { sources.slice().forEach(s=>s.end()); await new Promise(setImmediate); }
     const count=sources.length; player.stop();
     assert.ok(sources.slice(duringAnimal?4:0).every(s=>s.cancelled));
     sources.slice().forEach(s=>s.end()); await run;
@@ -150,4 +163,25 @@ test('unavailable, suspended and failing audio settles without blocking visuals'
   for (const context of [undefined,{state:'suspended'},{state:'running',createGain(){throw Error('no device');}}]) {
     await createAudioPlayer(()=>context).reveal('dog');
   }
+});
+
+test('reset during recording decode cannot start stale audio; missing or failed recordings stay silent', async () => {
+  for(const result of ['late','missing','error']) {
+    const {sources,context}=fakeAudio(); let release;
+    const loading=new Promise((resolve,reject)=>{release=()=>result==='error'?reject(Error('decode failed')):resolve(result==='missing'?null:{duration:1});});
+    const player=createAudioPlayer(()=>context,()=>loading);
+    const run=player.reveal('dog'); sources.slice().forEach(s=>s.end());
+    await new Promise(setImmediate);
+    if(result==='late')player.stop();
+    release(); await run;
+    assert.equal(sources.length,4);
+  }
+});
+
+test('scene markup contains clouds and stars with no ground or shadow decorations', async () => {
+  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+  const css=await readFile(new URL('../style.css',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/scenery-ground|egg-shadow|id="hill"/);
+  assert.doesNotMatch(css,/scenery-ground|egg-shadow/);
+  assert.match(html,/class="clouds"/); assert.match(html,/class="stars"/);
 });
