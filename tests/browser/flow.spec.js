@@ -94,3 +94,154 @@ test('viewport fits, SVG images decode, reduced motion still reveals', async ({p
   expect(await page.locator('#animal').evaluate(image=>image.complete && image.naturalWidth>0)).toBeTruthy();
   expect(errors).toEqual([]);
 });
+
+test('smooth progress and cumulative cracking follow the deadline through resume and reload', async ({page}) => {
+  await page.clock.install();
+  await page.goto('./');
+  await page.locator('#sound').click(); await page.locator('#start').click();
+  const arc=page.locator('#progress-arc'), scene=page.locator('#scene');
+  expect(Number(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeLessThan(.002);
+  await expect(scene).toHaveAttribute('data-crack-stage','1');
+  await page.clock.fastForward(89_000);
+  await expect(scene).toHaveAttribute('data-crack-stage','1');
+  await page.clock.fastForward(1000);
+  await expect(scene).toHaveAttribute('data-crack-stage','2');
+  expect(Number(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeCloseTo(.5,2);
+  await page.clock.runFor(100);
+  const before=Number(await arc.evaluate(el=>el.style.strokeDashoffset));
+  await page.clock.runFor(50);
+  expect(Number(await arc.evaluate(el=>el.style.strokeDashoffset))).toBeGreaterThan(before);
+  await page.clock.fastForward(44_850);
+  await expect(scene).toHaveAttribute('data-crack-stage','3');
+  await page.clock.fastForward(27_000);
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await expect(scene).toHaveAttribute('data-crack-stage','4');
+  const deadline=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).session.deadline,key);
+  await page.reload();
+  await expect(scene).toHaveAttribute('data-crack-stage','4');
+  expect(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).session.deadline,key)).toBe(deadline);
+  for (const stage of [2,3,4]) await expect(page.locator(`.crack-stage-${stage}`)).toHaveCSS('opacity','1');
+  await page.clock.fastForward(18_000);
+  await expect(arc).toHaveCSS('visibility','hidden');
+  await expect(scene).toHaveAttribute('data-crack-stage','4');
+  await page.clock.fastForward(4000);
+  await expect(page.locator('#progress-ring')).toHaveCSS('opacity','0');
+  const animal=await page.locator('#animal-name').textContent();
+  await page.evaluate(()=>{for(let i=0;i<3;i++)document.dispatchEvent(new Event('visibilitychange'));});
+  await expect(page.locator('#animal-name')).toHaveText(animal);
+});
+
+test('animated shell stays within the ring at each stage and viewport', async ({page}) => {
+  await page.clock.install(); await page.goto('./');
+  await page.locator('#sound').click(); await page.locator('#start').click();
+  for (const elapsed of [0,90_000,45_000,27_000]) {
+    if(elapsed) await page.clock.fastForward(elapsed);
+    // Sample the curved shell at multiple points in every rocking cycle.
+    for(let sample=0;sample<12;sample++) {
+      await page.clock.runFor(100);
+      const fit=await page.evaluate(()=>{
+        const ring=document.querySelector('#progress-ring').getBoundingClientRect();
+        const svg=document.querySelector('.egg');
+        const matrix=svg.getScreenCTM();
+        // Sample the real curved artwork outline in SVG coordinates.
+        const path=document.querySelector('#eggSurface > path');
+        const length=path.getTotalLength(); let clearance=Infinity;
+        const radius=ring.width*(174-4.5)/360;
+        for(let i=0;i<=160;i++) {
+          const p=path.getPointAtLength(length*i/160);
+          const point=new DOMPoint(p.x,p.y).matrixTransform(matrix);
+          clearance=Math.min(clearance,radius-Math.hypot(point.x-ring.x-ring.width/2,point.y-ring.y-ring.height/2));
+        }
+        return {clearance,inside:ring.x>=0 && ring.right<=innerWidth && ring.y>=0,overflow:document.documentElement.scrollWidth>innerWidth};
+      });
+      expect(fit.clearance).toBeGreaterThan(10);
+      expect(fit.inside).toBe(true); expect(fit.overflow).toBe(false);
+    }
+  }
+});
+
+test('mute, Hotovo and audio failure leave no queued sound and never block the reveal', async ({page}) => {
+  await page.clock.install();
+  await page.addInitScript(()=>{
+    window.audioSources=[];
+    const Original=window.AudioContext||window.webkitAudioContext;
+    window.AudioContext=class extends Original {
+      createOscillator(){const s=super.createOscillator();window.audioSources.push(s);return s;}
+    };
+  });
+  await page.goto('./');
+  await page.locator('#sound').click(); await page.locator('#start').click();
+  await page.clock.fastForward(184_000);
+  await expect(page.locator('#done')).toBeVisible();
+  expect(await page.evaluate(()=>window.audioSources.length)).toBe(0);
+  await page.locator('#done').click(); await page.locator('#sound').click();
+  // Force an unavailable audio device after the gesture unlock.
+  await page.evaluate(()=>{AudioContext.prototype.createGain=()=>{throw Error('Audio unavailable');};});
+  await page.locator('#start').click(); await page.clock.fastForward(184_000);
+  await expect(page.locator('#done')).toBeVisible();
+  await page.locator('#done').click(); await expect(page.locator('#start')).toBeVisible();
+});
+
+test('Hotovo and mute stop real audio orchestration, including queued animal playback', async ({page}) => {
+  await page.clock.install();
+  await page.addInitScript(()=>{
+    window.voices=[];
+    const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}});
+    const node=()=>({connect(){return this;},disconnect(){},gain:param(),frequency:param()});
+    const source=()=>{const s={...node(),start(){},stop(at){if(at===undefined)this.cancelled=true;}}; window.voices.push(s); return s;};
+    window.AudioContext=class {
+      state='running'; currentTime=0; sampleRate=1000; destination=node();
+      createOscillator(){const s=source();s.voice=true;return s;}
+      createBufferSource(){return source();}
+      createGain(){return node();} createBiquadFilter(){return node();}
+      createBuffer(c,n){return {getChannelData:()=>new Float32Array(n)};}
+    };
+  });
+  await page.goto('./'); await page.locator('#start').click();
+  await page.clock.fastForward(180_000); await page.clock.fastForward(3_200);
+  await expect(page.locator('#done')).toBeVisible();
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBe(4);
+  await page.locator('#done').click();
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).every(s=>s.cancelled))).toBe(true);
+  await page.evaluate(()=>voices.forEach(s=>s.onended?.()));
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBe(4);
+  await page.locator('#start').click(); await page.clock.fastForward(180_000); await page.clock.fastForward(3_200);
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBe(8);
+  await page.evaluate(()=>voices.filter(s=>s.voice).slice(4).forEach(s=>s.onended?.()));
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).length)).toBeGreaterThan(8);
+  await page.locator('#sound').click();
+  expect(await page.evaluate(()=>voices.filter(s=>s.voice).slice(8).every(s=>s.cancelled))).toBe(true);
+  await page.locator('#done').click();
+  await expect(page.locator('#start')).toBeVisible();
+});
+
+test('ring, timer and controls fit compact and full iPad layouts', async ({page}) => {
+  await page.clock.install(); await page.goto('./');
+  await page.locator('#sound').click(); await page.locator('#start').click();
+  for (const [width,height] of [[768,1024],[1024,768],[820,1180],[1180,820],[600,800],[390,844],[320,568]]) {
+    await page.setViewportSize({width,height});
+    const ring=await page.locator('#progress-ring').boundingBox();
+    const time=await page.locator('#time').boundingBox();
+    const cancel=await page.locator('#cancel').boundingBox();
+    expect(ring.x).toBeGreaterThanOrEqual(0); expect(ring.x+ring.width).toBeLessThanOrEqual(width);
+    expect(time.y).toBeGreaterThan(ring.y+ring.height);
+    expect(time.y+time.height).toBeLessThanOrEqual(height);
+    expect(cancel.y+cancel.height).toBeLessThanOrEqual(height);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+});
+
+test('cracks actually render in the SVG use instances at every stage', async ({page}) => {
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.clock.install(); await page.goto('./');
+  await page.locator('#sound').click(); await page.locator('#start').click();
+  const images=[];
+  for(const advance of [0,90_000,45_000,27_000]) {
+    if(advance) await page.clock.fastForward(advance);
+    const box=await page.locator('.egg').boundingBox();
+    // Only the shell interior: the progress ring, numbers and scenery cannot
+    // account for these pixel changes. This catches unstyled SVG use clones.
+    images.push(await page.screenshot({clip:{x:box.x+box.width*.2,y:box.y+box.height*.38,width:box.width*.6,height:box.height*.42}}));
+  }
+  for(let i=1;i<images.length;i++) expect(images[i].equals(images[i-1])).toBe(false);
+});

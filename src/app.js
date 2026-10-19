@@ -1,14 +1,14 @@
 import { animals } from './animals.js';
-import { clampMinutes, minuteLabel, remaining, formatTime } from './timer.js';
+import { clampMinutes, minuteLabel, remaining, formatTime, countdownProgress } from './timer.js';
 import { readState, saveState, startSession, completeSession, resetSession } from './state.js';
-import { unlockAudio, playHatch } from './audio.js';
+import { unlockAudio, playReveal, stopAudio } from './audio.js';
 import { confetti } from './celebration.js';
 const $ = id => document.getElementById(id);
 let storage;
 try { storage = window.localStorage; } catch { /* Private browsing can block access. */ }
 const state = readState(storage);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-let interval, revealTimeout, celebrationTimeout, wakeLock, wakeRequest = 0;
+let frame, interval, revealTimeout, celebrationTimeout, wakeLock, wakeRequest = 0;
 function persist() { $('storage-note').hidden = saveState(storage, state); }
 function updatePreferences() {
   $('minutes').textContent = state.minutes;
@@ -41,12 +41,16 @@ function releaseWakeLock() {
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
 }
 function clearTimers() {
+  cancelAnimationFrame(frame); stopAudio();
   clearInterval(interval); clearTimeout(revealTimeout); clearTimeout(celebrationTimeout);
-  interval = revealTimeout = celebrationTimeout = undefined;
+  frame = interval = revealTimeout = celebrationTimeout = undefined;
   releaseWakeLock();
 }
 function prepareEgg() {
   $('scene').className = 'scene';
+  $('scene').dataset.crackStage = '1';
+  $('progress-arc').style.strokeDashoffset = '0';
+  $('progress-arc').style.visibility = 'visible';
   $('animal').hidden = true;
   $('animal').removeAttribute('src');
   $('animal').alt = '';
@@ -75,18 +79,25 @@ function showAnimal(animal, animate) {
   $('message').textContent = 'Už se klube na svět…';
   const delay = reducedMotion.matches ? 150 : 3100;
   celebrationTimeout = setTimeout(() => {
-    if (state.sound) playHatch();
+    if (state.sound && !document.hidden) void playReveal(animal.id);
     confetti($('confetti'), reducedMotion.matches);
   }, reducedMotion.matches ? 150 : 2450);
   revealTimeout = setTimeout(finish, delay);
 }
-function tick() {
+function tick(immediate = false) {
   if (state.session?.status !== 'countdown') return;
-  const seconds = remaining(state.session.deadline);
-  $('time').textContent = formatTime(seconds);
+  const now = Date.now();
+  const seconds = remaining(state.session.deadline, now);
+  const { fraction, stage } = countdownProgress(state.session.deadline, state.session.minutes * 60_000, now);
+  $('progress-arc').style.strokeDashoffset = String(1 - fraction);
+  $('progress-arc').style.visibility = fraction === 0 ? 'hidden' : 'visible';
+  $('scene').classList.toggle('syncing-cracks', immediate);
+  $('scene').dataset.crackStage = String(stage);
+  const label = formatTime(seconds);
+  if ($('time').textContent !== label) $('time').textContent = label;
   const scene = $('scene');
-  scene.classList.toggle('anticipating', seconds / (state.session.minutes * 60) <= 0.2 && seconds > 10);
-  scene.classList.toggle('imminent', seconds <= 10 && seconds > 0);
+  scene.classList.toggle('anticipating', stage === 3 && seconds > 0);
+  scene.classList.toggle('imminent', stage === 4 && seconds > 0);
   if (seconds > 0) return;
   const animal = completeSession(state);
   if (!animal) return;
@@ -98,8 +109,18 @@ function resumeCountdown(focus = false) {
   clearTimers(); prepareEgg();
   $('cancel').disabled = false;
   screen('countdown', focus);
-  tick();
-  if (state.session?.status === 'countdown') { interval = setInterval(tick, 250); acquireWakeLock(); }
+  tick(true);
+  if (state.session?.status === 'countdown') {
+    // The interval is a lifecycle fallback; both callbacks read the same deadline.
+    interval = setInterval(tick, 250);
+    const draw = () => {
+      if (state.session?.status !== 'countdown') return;
+      tick();
+      if (state.session?.status === 'countdown') frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    acquireWakeLock();
+  }
 }
 function reset() {
   clearTimers(); resetSession(state); persist(); prepareEgg();
@@ -108,7 +129,7 @@ function reset() {
 }
 $('plus').addEventListener('click', () => { state.minutes = clampMinutes(state.minutes + 1); updatePreferences(); persist(); });
 $('minus').addEventListener('click', () => { state.minutes = clampMinutes(state.minutes - 1); updatePreferences(); persist(); });
-$('sound').addEventListener('click', () => { state.sound = !state.sound; if (state.sound) unlockAudio(); updatePreferences(); persist(); });
+$('sound').addEventListener('click', () => { state.sound = !state.sound; if (state.sound) unlockAudio(); else stopAudio(); updatePreferences(); persist(); });
 $('start').addEventListener('click', () => {
   if (state.session) return;
   if (state.sound) unlockAudio();
@@ -117,8 +138,8 @@ $('start').addEventListener('click', () => {
 $('cancel').addEventListener('click', reset);
 $('done').addEventListener('click', reset);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) releaseWakeLock();
-  else if (state.session?.status === 'countdown') { tick(); acquireWakeLock(); }
+  if (document.hidden) { releaseWakeLock(); stopAudio(); }
+  else if (state.session?.status === 'countdown') { tick(true); acquireWakeLock(); }
 });
 window.addEventListener('pagehide', clearTimers);
 window.addEventListener('pageshow', event => {

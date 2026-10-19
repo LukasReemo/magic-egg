@@ -86,7 +86,68 @@ test('production cache includes all application and animal files and changes wit
   const worker = await readFile(new URL('../dist/sw.js',import.meta.url),'utf8');
   assert.match(worker,/magic-egg-[a-f0-9]{16}/);
   for (const animal of animals) assert.ok(worker.includes(animal.asset));
-  for (const asset of ['./index.html','./src/app.js','./style.css','./manifest.webmanifest']) assert.ok(worker.includes(asset));
+  for (const asset of ['./index.html','./src/app.js','./src/audio.js','./src/animal-sounds.js','./style.css','./manifest.webmanifest']) assert.ok(worker.includes(asset));
   assert.ok(worker.includes('self.registration.scope'));
   assert.ok(!worker.includes('skipWaiting()'));
+});
+
+import { countdownProgress } from '../src/timer.js';
+import { animalSounds } from '../src/animal-sounds.js';
+import { createAudioPlayer } from '../src/audio.js';
+test('visual progress clamps the deadline fraction and changes cracks at exact boundaries', () => {
+  const duration = 60_000;
+  for (const [elapsed, fraction, stage] of [[-100,1,1],[0,1,1],[29999,30001/60000,1],[30000,.5,2],[44999,15001/60000,2],[45000,.25,3],[53999,6001/60000,3],[54000,.1,4],[59999,1/60000,4],[60000,0,4],[90000,0,4]]) {
+    assert.deepEqual(countdownProgress(duration,duration,elapsed),{fraction,stage});
+  }
+  const state = freshState(); startSession(state,0);
+  const restored = restoreState(JSON.stringify(state));
+  assert.deepEqual(countdownProgress(restored.session.deadline,180_000,162_000),{fraction:.1,stage:4});
+});
+test('all thirty animal IDs have distinct, bounded, locally synthesized voices', () => {
+  assert.deepEqual(Object.keys(animalSounds).sort(),animals.map(a=>a.id).sort());
+  assert.equal(new Set(Object.values(animalSounds).map(JSON.stringify)).size,30);
+  for (const notes of Object.values(animalSounds)) {
+    const duration = Math.max(...notes.map(n=>n.at+n.duration));
+    assert.ok(duration>=.5 && duration<=2);
+    for (const n of notes) {
+      assert.ok(n.level<=.075 && n.level>0);
+      assert.ok(n.pitches.length>=2 && n.pitches.every(p=>p>0 && p<4000));
+    }
+  }
+});
+function fakeAudio() {
+  const sources = [];
+  const param = () => ({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}});
+  const node = () => ({connect(){return this;},disconnect(){},gain:param(),frequency:param()});
+  const source = () => {
+    const s = {...node(),start(at){this.startAt=at;},stop(at){if(at===undefined)this.cancelled=true;else this.endAt=at;},end(){this.onended?.();}};
+    sources.push(s); return s;
+  };
+  return {sources,context:{state:'running',currentTime:0,sampleRate:1000,destination:node(),createOscillator:source,createGain:node,createBiquadFilter:node,createBufferSource:source,createBuffer:(channels,length)=>({getChannelData:()=>new Float32Array(length)})}};
+}
+test('animal playback waits for every celebration source to actually finish', async () => {
+  const {sources,context} = fakeAudio(); const player=createAudioPlayer(()=>context);
+  const run=player.reveal('dog');
+  assert.equal(sources.length,4);
+  sources[3].end(); sources[0].end(); sources[1].end();
+  await Promise.resolve(); assert.equal(sources.length,4);
+  context.currentTime=2; sources[2].end(); await Promise.resolve();
+  assert.ok(sources.length>4); assert.ok(sources.slice(4).every(s=>s.startAt>=2));
+  for (const s of sources.slice(4)) s.end(); await run;
+});
+test('cancellation drops pending animal calls and stops active voices', async () => {
+  for (const duringAnimal of [false,true]) {
+    const {sources,context}=fakeAudio(); const player=createAudioPlayer(()=>context);
+    const run=player.reveal('cat');
+    if (duringAnimal) { sources.slice().forEach(s=>s.end()); await Promise.resolve(); }
+    const count=sources.length; player.stop();
+    assert.ok(sources.slice(duringAnimal?4:0).every(s=>s.cancelled));
+    sources.slice().forEach(s=>s.end()); await run;
+    assert.equal(sources.length,count);
+  }
+});
+test('unavailable, suspended and failing audio settles without blocking visuals', async () => {
+  for (const context of [undefined,{state:'suspended'},{state:'running',createGain(){throw Error('no device');}}]) {
+    await createAudioPlayer(()=>context).reveal('dog');
+  }
 });

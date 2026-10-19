@@ -20,3 +20,10 @@ export function chooseAnimal(animals, previous, pick = randomIndex) {
   const available = animals.filter(animal => animal.id !== previous);
   return available[pick(available.length)];
 }
+
+// Both visual cues use the saved wall-clock deadline, including after suspension.
+export function countdownProgress(deadline, totalDurationMilliseconds, now = Date.now()) {
+  const fraction = Math.max(0, Math.min(1, (deadline - now) / totalDurationMilliseconds));
+  const stage = fraction <= 0.1 ? 4 : fraction <= 0.25 ? 3 : fraction <= 0.5 ? 2 : 1;
+  return { fraction, stage };
+}
